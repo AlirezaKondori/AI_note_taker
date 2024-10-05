@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Study Buddy</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Study Buddy Notes</h1>
+        
+        {% if not processing %}
+        <form method="POST" enctype="multipart/form-data">
+            <label for="file">Upload PDF</label>
+            <input type="file" name="file" accept="application/pdf" required>
+            <button type="submit">Generate Notes</button>
+        </form>
+        {% endif %}
+        
+        {% if processing %}
+        <div id="progress-container">
+            <p>Processing PDF... <span id="progress">0%</span></p>
+            <div id="progress-bar">
+                <div id="progress-fill"></div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div id="content-container"></div>
+        
+        <div id="download-container" style="display: none;">
+            <hr>
+            <a href="{{ url_for('download_notes') }}">Download Notes as .md</a>
+        </div>
+    </div>
+
+    {% if processing %}
+    <script>
+        const progressBar = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress');
+        const contentContainer = document.getElementById('content-container');
+        const downloadContainer = document.getElementById('download-container');
+        const eventSource = new EventSource("{{ url_for('process') }}");
+
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.progress) {
+                const progress = Math.round(data.progress);
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `${progress}%`;
+            }
+            if (data.complete) {
+                eventSource.close();
+                fetch("{{ url_for('result') }}")
+                    .then(response => response.json())
+                    .then(data => {
+                        contentContainer.innerHTML = data.content;
+                        downloadContainer.style.display = 'block';
+                        document.getElementById('progress-container').style.display = 'none';
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while fetching the results.');
+                    });
+            }
+            if (data.error) {
+                alert('An error occurred: ' + data.error);
+                eventSource.close();
+            }
+        };
+    </script>
+    {% endif %}
+</body>
+</html>
