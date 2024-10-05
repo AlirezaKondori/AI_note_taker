@@ -1,0 +1,30 @@
+# Ignore generated notes file
+notes.md
+
+# Ignore API key file
+api_key.txt
+
+# Python-related files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Flask-related files
+instance/
+.webassets-cache
+
+# OS-related files
+.DS_Store
+Thumbs.db
+
+# Editor-related files (optional, uncomment if needed)
+# .vscode/
+# .idea/
+# *.swp
+# *.swo
