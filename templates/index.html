@@ -3,74 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Study Buddy</title>
+    <title>AI Note Taker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>AI Study Buddy Notes</h1>
+        <header>
+            <h1>AI Note Taker</h1>
+            <p>Generate comprehensive notes from your PDF documents</p>
+        </header>
         
-        {% if not processing %}
-        <form method="POST" enctype="multipart/form-data">
-            <label for="file">Upload PDF</label>
-            <input type="file" name="file" accept="application/pdf" required>
-            <button type="submit">Generate Notes</button>
-        </form>
-        {% endif %}
-        
-        {% if processing %}
-        <div id="progress-container">
-            <p>Processing PDF... <span id="progress">0%</span></p>
-            <div id="progress-bar">
-                <div id="progress-fill"></div>
+        <main>
+            <form id="upload-form" method="POST" enctype="multipart/form-data">
+                <div class="file-upload">
+                    <input type="file" name="file" id="file-input" accept="application/pdf" required>
+                    <label for="file-input">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        <span>Choose a PDF file</span>
+                    </label>
+                </div>
+                <button type="submit" id="generate-btn">Generate Notes</button>
+            </form>
+
+            <div id="progress-container" class="hidden">
+                <h2>Generating Notes</h2>
+                <div class="progress-bar">
+                    <div id="progress-fill"></div>
+                </div>
+                <p id="progress-text">0%</p>
             </div>
-        </div>
-        {% endif %}
-        
-        <div id="content-container"></div>
-        
-        <div id="download-container" style="display: none;">
-            <hr>
-            <a href="{{ url_for('download_notes') }}">Download Notes as .md</a>
-        </div>
+
+            <div id="content-container" class="hidden">
+                <h2>Generated Notes</h2>
+                <div id="notes-content"></div>
+            </div>
+
+            <div id="download-container" class="hidden">
+                <a href="{{ url_for('download_notes') }}" class="download-btn">Download Notes as PDF</a>
+            </div>
+        </main>
     </div>
 
-    {% if processing %}
-    <script>
-        const progressBar = document.getElementById('progress-fill');
-        const progressText = document.getElementById('progress');
-        const contentContainer = document.getElementById('content-container');
-        const downloadContainer = document.getElementById('download-container');
-        const eventSource = new EventSource("{{ url_for('process') }}");
-
-        eventSource.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            if (data.progress) {
-                const progress = Math.round(data.progress);
-                progressBar.style.width = `${progress}%`;
-                progressText.textContent = `${progress}%`;
-            }
-            if (data.complete) {
-                eventSource.close();
-                fetch("{{ url_for('result') }}")
-                    .then(response => response.json())
-                    .then(data => {
-                        contentContainer.innerHTML = data.content;
-                        downloadContainer.style.display = 'block';
-                        document.getElementById('progress-container').style.display = 'none';
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('An error occurred while fetching the results.');
-                    });
-            }
-            if (data.error) {
-                alert('An error occurred: ' + data.error);
-                eventSource.close();
-            }
-        };
-    </script>
-    {% endif %}
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

@@ -1,11 +1,13 @@
 import os
 import io
-from flask import Flask, render_template, request, send_file, Response, stream_with_context, jsonify
+from flask import Flask, render_template, request, send_file, Response, jsonify
 from markdown2 import Markdown
 from groq import Groq
 import PyPDF2
 import json
 import time
+import pdfkit
+import tempfile
 
 app = Flask(__name__)
 markdowner = Markdown()
@@ -22,21 +24,16 @@ def get_api_key():
 api_key = get_api_key()
 client = Groq(api_key=api_key)
 
+# Set the path to wkhtmltopdf
+WKHTMLTOPDF_PATH = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
+config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
+
 # Function to extract text from a PDF file
 def extract_text_from_pdf(pdf_file):
-    pdf_reader = PyPDF2.PdfReader(io.BytesIO(pdf_file.read()))
+    pdf_reader = PyPDF2.PdfReader(pdf_file)
     text = ""
-    print(f"Total pages in PDF: {len(pdf_reader.pages)}")
-    for i, page in enumerate(pdf_reader.pages):
-        page_text = page.extract_text()
-        text += page_text
-        print(f"Page {i+1} extracted text length: {len(page_text)}")
-    
-    print("Total extracted text length:", len(text))
-    print("First 500 characters of extracted text:")
-    print(text[:500])
-    print("Last 500 characters of extracted text:")
-    print(text[-500:])
+    for page in pdf_reader.pages:
+        text += page.extract_text()
     return text
 
 # Function to generate coherent notes in markdown using AI
@@ -47,7 +44,6 @@ def generate_coherent_notes(text):
 
     for i, chunk in enumerate(chunks):
         prompt = f"Create detailed, coherent notes in markdown format based on the following content (part {i+1} of {len(chunks)}). Focus only on the information provided:\n\n{chunk}"
-        print(f"Processing chunk {i+1} of {len(chunks)}")
         
         response = client.chat.completions.create(
             model="mixtral-8x7b-32768",
@@ -71,28 +67,30 @@ def generate_coherent_notes(text):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
-        pdf_file = request.files['file']
-        
-        # Extract text from PDF
-        pdf_text = extract_text_from_pdf(pdf_file)
-        
-        # Store the text for processing
-        app.config['PDF_TEXT'] = pdf_text
-        
-        return render_template('index.html', processing=True)
-    
-    return render_template('index.html', processing=False)
+        if 'file' not in request.files:
+            return jsonify({"error": "No file part"}), 400
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No selected file"}), 400
+        if file:
+            pdf_text = extract_text_from_pdf(file)
+            app.config['PDF_TEXT'] = pdf_text
+            return jsonify({"message": "File uploaded successfully"}), 200
+    return render_template('index.html')
 
 @app.route('/process')
 def process():
     def generate():
         pdf_text = app.config.get('PDF_TEXT', '')
+        if not pdf_text:
+            yield json.dumps({"error": "No PDF text found"})
+            return
         
         for update in generate_coherent_notes(pdf_text):
             yield f"data: {update}\n\n"
             time.sleep(0.1)  # Small delay to ensure browser receives updates
 
-    return Response(stream_with_context(generate()), mimetype='text/event-stream')
+    return Response(generate(), mimetype='text/event-stream')
 
 @app.route('/result')
 def result():
@@ -106,9 +104,54 @@ def download_notes():
     if not notes:
         return "No notes available for download", 400
     
-    with open("notes.md", "w", encoding='utf-8') as f:
-        f.write(notes)
-    return send_file('notes.md', as_attachment=True)
+    # Convert markdown to HTML
+    html_content = markdowner.convert(notes)
+    
+    # Add some basic styling
+    styled_html = f"""
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; }}
+            h1, h2, h3 {{ color: #4a90e2; }}
+        </style>
+    </head>
+    <body>
+        {html_content}
+    </body>
+    </html>
+    """
+    
+    # Create temporary files
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.html', mode='w', encoding='utf-8') as temp_html:
+        temp_html.write(styled_html)
+        temp_html_path = temp_html.name
+
+    pdf_path = temp_html_path.replace('.html', '.pdf')
+    
+    try:
+        # Generate PDF from the temporary HTML file
+        pdfkit.from_file(temp_html_path, pdf_path, configuration=config)
+        
+        # Read the PDF file
+        with open(pdf_path, 'rb') as pdf_file:
+            pdf_content = pdf_file.read()
+        
+        # Create a response with the PDF content
+        response = Response(pdf_content, content_type='application/pdf')
+        response.headers['Content-Disposition'] = f'attachment; filename=generated_notes.pdf'
+        return response
+
+    finally:
+        # Clean up temporary files
+        try:
+            os.remove(temp_html_path)
+        except:
+            pass
+        try:
+            os.remove(pdf_path)
+        except:
+            pass
 
 if __name__ == "__main__":
     app.run(debug=True)
