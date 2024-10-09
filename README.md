@@ -55,7 +55,7 @@ AI Note Taker is an AI-powered PDF note-taking application that allows users to 
 
 2. Open your browser and go to `http://127.0.0.1:5000`.
 
-3. Log in using your Google account.
+3. Log in using your Google account or sign up for an account using an email address.
 
 4. Upload a PDF document and generate notes.
 
