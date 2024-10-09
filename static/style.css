@@ -3,6 +3,7 @@
     --secondary-color: #f5a623;
     --background-color: #f4f7f9;
     --text-color: #333;
+    --error-color: #e74c3c;
 }
 
 body {
@@ -25,8 +26,41 @@ header {
     margin-bottom: 2rem;
 }
 
-h1 {
+h1, h2 {
     color: var(--primary-color);
+}
+
+form {
+    background-color: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+input[type="text"],
+input[type="password"],
+input[type="file"] {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+button, .btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background-color: var(--secondary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color 0.3s ease;
+}
+
+button:hover, .btn:hover {
+    background-color: #e59613;
 }
 
 .file-upload {
@@ -53,26 +87,6 @@ h1 {
     background-color: #3a80d2;
 }
 
-.file-upload svg {
-    margin-right: 0.5rem;
-}
-
-button, .download-btn {
-    display: inline-block;
-    padding: 0.75rem 1.5rem;
-    background-color: var(--secondary-color);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    text-decoration: none;
-    transition: background-color 0.3s ease;
-}
-
-button:hover, .download-btn:hover {
-    background-color: #e59613;
-}
-
 .progress-bar {
     width: 100%;
     background-color: #e0e0e0;
@@ -88,26 +102,33 @@ button:hover, .download-btn:hover {
     transition: width 0.3s ease;
 }
 
-#progress-text {
-    font-weight: bold;
-}
-
 .hidden {
     display: none;
 }
 
-#content-container {
-    margin-top: 2rem;
+.flash-messages {
+    list-style-type: none;
+    padding: 0;
 }
 
-#notes-content {
-    background-color: white;
-    padding: 1rem;
+.flash-message {
+    background-color: var(--error-color);
+    color: white;
+    padding: 0.5rem 1rem;
+    margin-bottom: 1rem;
     border-radius: 4px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-#download-container {
+.auth-links {
     margin-top: 1rem;
     text-align: center;
+}
+
+.auth-links a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.auth-links a:hover {
+    text-decoration: underline;
 }

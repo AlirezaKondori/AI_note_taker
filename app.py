@@ -1,6 +1,6 @@
 import os
 import io
-from flask import Flask, render_template, request, send_file, Response, jsonify
+from flask import Flask, render_template, request, send_file, Response, jsonify, redirect, url_for, flash, session
 from markdown2 import Markdown
 from groq import Groq
 import PyPDF2
@@ -8,9 +8,42 @@ import json
 import time
 import pdfkit
 import tempfile
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv
+import requests
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
-markdowner = Markdown()
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key')  # Replace with a real secret key
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+db = SQLAlchemy(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+# User model definition
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=True)  # Change to nullable=True
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+# Auth0 configuration
+AUTH0_DOMAIN = os.getenv('AUTH0_DOMAIN')
+API_IDENTIFIER = os.getenv('API_IDENTIFIER')
+CLIENT_ID = os.getenv('CLIENT_ID')
+CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+
+# Initialize the Markdown converter
+markdowner = Markdown()  # Ensure this is defined here
 
 # Set up Groq client
 def get_api_key():
@@ -64,7 +97,48 @@ def generate_coherent_notes(text):
     app.config['CURRENT_NOTES'] = final_notes
     yield json.dumps({"complete": True})
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        user = User.query.filter_by(username=username).first()
+        if user:
+            flash('Username already exists')
+            return redirect(url_for('register'))
+        
+        new_user = User(username=username)
+        new_user.set_password(password)
+        db.session.add(new_user)
+        db.session.commit()
+        
+        flash('Registration successful. Please log in.')
+        return redirect(url_for('login'))
+    
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    callback_url = url_for("callback", _external=True)
+    print(f"Callback URL: {callback_url}")  # Debugging line
+    return redirect(f'https://{AUTH0_DOMAIN}/authorize?audience={API_IDENTIFIER}&client_id={CLIENT_ID}&response_type=token&redirect_uri={callback_url}&scope=openid email')
+
+@app.route('/callback')
+def callback():
+    return render_template('callback.html')  # Render a simple HTML page to handle the token
+
+@app.route('/logout')
+@login_required
+def logout():
+    # Log out from Flask-Login
+    logout_user()
+    
+    # Redirect to Auth0 logout endpoint
+    return redirect(f'https://{AUTH0_DOMAIN}/v2/logout?returnTo={url_for("login", _external=True)}&client_id={CLIENT_ID}')
+
 @app.route('/', methods=['GET', 'POST'])
+@login_required
 def index():
     if request.method == 'POST':
         if 'file' not in request.files:
@@ -77,6 +151,13 @@ def index():
             app.config['PDF_TEXT'] = pdf_text
             return jsonify({"message": "File uploaded successfully"}), 200
     return render_template('index.html')
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({"error": "Authentication required"}), 401
+    flash('You must be logged in to access this page.')
+    return redirect(url_for('login'))
 
 @app.route('/process')
 def process():
@@ -93,10 +174,18 @@ def process():
     return Response(generate(), mimetype='text/event-stream')
 
 @app.route('/result')
+@login_required
 def result():
     markdown_notes = app.config.get('CURRENT_NOTES', '')
-    html_content = markdowner.convert(markdown_notes)
-    return jsonify({"content": html_content})
+    if not markdown_notes:
+        return jsonify({"error": "No notes available"}), 400
+    
+    try:
+        html_content = markdowner.convert(markdown_notes)
+        return jsonify({"content": html_content})
+    except Exception as e:
+        print(f"Error generating result: {e}")  # Log the error to the console
+        return jsonify({"error": "Failed to generate notes"}), 500
 
 @app.route('/download')
 def download_notes():
@@ -153,5 +242,43 @@ def download_notes():
         except:
             pass
 
+@app.route('/process_token', methods=['POST'])
+def process_token():
+    data = request.get_json()
+    token = data.get('token')
+    if token:
+        user_info_response = requests.get(f'https://{AUTH0_DOMAIN}/userinfo', headers={'Authorization': f'Bearer {token}'})
+        if user_info_response.status_code != 200:
+            print(f"Failed to retrieve user info: {user_info_response.status_code}, {user_info_response.text}")
+            return jsonify({'status': 'error', 'message': 'Failed to retrieve user info'}), 400
+        
+        user_info = user_info_response.json()
+        print(f"User Info: {user_info}")  # Debugging line
+        
+        # Use email as username if nickname is not available
+        username = user_info.get('nickname') or user_info.get('email')
+        
+        if username is None:
+            return jsonify({'status': 'error', 'message': 'No valid username found'}), 400
+        
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            # Create a new user with a placeholder password hash
+            user = User(username=username)
+            user.password_hash = generate_password_hash('placeholder')  # Set a placeholder password
+            db.session.add(user)
+            db.session.commit()
+        
+        login_user(user)
+        return jsonify({'status': 'success'}), 200
+    return jsonify({'status': 'error', 'message': 'No token found'}), 400
+
+# User loader function
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))  # Retrieve the user by ID
+
 if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)

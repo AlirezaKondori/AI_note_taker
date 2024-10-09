@@ -4,6 +4,9 @@ notes.md
 # Ignore API key file
 api_key.txt
 
+# Ignore environment file
+.env
+
 # Python-related files
 __pycache__/
 *.pyc

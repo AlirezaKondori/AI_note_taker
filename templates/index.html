@@ -11,7 +11,11 @@
     <div class="container">
         <header>
             <h1>AI Note Taker</h1>
-            <p>Generate comprehensive notes from your PDF documents</p>
+            {% if current_user.is_authenticated %}
+                <p>Welcome, {{ current_user.username }}! <a href="{{ url_for('logout') }}" class="btn">Logout</a></p>
+            {% else %}
+                <a href="{{ url_for('login') }}" class="btn">Login with Auth0</a>
+            {% endif %}
         </header>
         
         <main>
@@ -40,7 +44,7 @@
             </div>
 
             <div id="download-container" class="hidden">
-                <a href="{{ url_for('download_notes') }}" class="download-btn">Download Notes as PDF</a>
+                <a href="{{ url_for('download_notes') }}" class="btn">Download Notes as PDF</a>
             </div>
         </main>
     </div>

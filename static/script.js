@@ -21,64 +21,79 @@ document.addEventListener('DOMContentLoaded', function() {
     if (form) {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
-            console.log('Form submitted');
             if (fileInput && fileInput.files.length > 0) {
-                console.log('File selected:', fileInput.files[0].name);
                 const formData = new FormData(form);
                 
                 fetch('/', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
                 }).then(response => {
-                    console.log('Response status:', response.status);
+                    if (response.redirected) {
+                        // If the response is a redirect, it's likely due to authentication
+                        window.location.href = response.url;
+                        throw new Error('Authentication required');
+                    }
                     if (!response.ok) {
                         return response.json().then(err => { throw err; });
                     }
                     return response.json();
                 }).then(data => {
-                    console.log('Upload response:', data);
-                    if (form) form.classList.add('hidden');
-                    if (progressContainer) progressContainer.classList.remove('hidden');
+                    form.classList.add('hidden');
+                    progressContainer.classList.remove('hidden');
                     
                     const eventSource = new EventSource("/process");
                     
                     eventSource.onmessage = function(event) {
-                        console.log('SSE message received:', event.data);
                         const data = JSON.parse(event.data);
-                        if (data.progress && progressFill && progressText) {
+                        if (data.progress) {
                             const progress = Math.round(data.progress);
                             progressFill.style.width = `${progress}%`;
                             progressText.textContent = `${progress}%`;
                         }
                         if (data.complete) {
-                            console.log('Processing complete');
                             eventSource.close();
                             fetch("/result")
-                                .then(response => response.json())
+                                .then(response => {
+                                    if (!response.ok) {
+                                        return response.json().then(err => { throw err; });
+                                    }
+                                    return response.json();
+                                })
                                 .then(data => {
-                                    console.log('Result received');
-                                    if (progressContainer) progressContainer.classList.add('hidden');
-                                    if (contentContainer) contentContainer.classList.remove('hidden');
-                                    if (notesContent) notesContent.innerHTML = data.content;
-                                    if (downloadContainer) downloadContainer.classList.remove('hidden');
+                                    progressContainer.classList.add('hidden');
+                                    contentContainer.classList.remove('hidden');
+                                    notesContent.innerHTML = data.content;
+                                    downloadContainer.classList.remove('hidden');
                                 })
                                 .catch(error => {
-                                    console.error('Error fetching result:', error);
-                                    alert('An error occurred while fetching the results.');
+                                    console.error('Error fetching results:', error);  // Log the error to the console
+                                    alert('An error occurred while fetching the results: ' + (error.error || error.message || 'Unknown error'));
                                 });
                         }
                         if (data.error) {
-                            console.error('SSE error:', data.error);
                             alert('An error occurred: ' + data.error);
                             eventSource.close();
                         }
                     };
+
+                    eventSource.onerror = function(error) {
+                        console.error('EventSource failed:', error);
+                        alert('Connection to server lost. Please refresh the page and try again.');
+                        eventSource.close();
+                    };
                 }).catch(error => {
-                    console.error('Fetch error:', error);
-                    alert('An error occurred while uploading the file: ' + (error.error || error.message || 'Unknown error'));
+                    console.error('Error:', error);
+                    if (error.message === 'Authentication required') {
+                        alert('Your session has expired. Please log in again.');
+                    } else {
+                        alert('An error occurred while uploading the file: ' + (error.error || error.message || 'Unknown error'));
+                    }
                 });
             } else {
-                console.log('No file selected');
                 alert('Please select a file before generating notes.');
             }
         });
