@@ -63,8 +63,7 @@ AI Note Taker is an AI-powered PDF note-taking application that allows users to 
 Contributions are welcome! Please open an issue or submit a pull request.
 
 ## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
+This project is under development is not currently licensed.
 ## Acknowledgments
 - **Auth0**: For user authentication.
 - **Flask**: For the web framework.
