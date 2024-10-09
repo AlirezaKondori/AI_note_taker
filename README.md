@@ -30,17 +30,21 @@ AI Note Taker is an AI-powered PDF note-taking application that allows users to 
 
 3. Install the required packages:
    ```bash
-   pip install -r requirements.txt
+   pip install -r pip-requirements.txt
    ```
 
 4. Set up environment variables:
    Create a `.env` file in the root directory and add the following:
    ```plaintext
    SECRET_KEY=your_secret_key
-   AUTH0_DOMAIN=your_auth0_domain
+   AUTH0_DOMAIN=your_auth0_domain  # Sign up at https://auth0.com/ to create an Auth0 account
    API_IDENTIFIER=your_api_identifier
-   CLIENT_ID=your_client_id
+   CLIENT_ID=your_client_id  # Obtain this from your Auth0 application settings
+   CALLBACK_URL=your_callback_url  # Set this to your application's callback URL
    ```
+   - To create an Auth0 account, visit [Auth0 Sign Up](https://auth0.com/signup).
+   - After signing up, create a new application in the Auth0 dashboard to get your `AUTH0_DOMAIN` and `CLIENT_ID`.
+   - In the application settings, set the **Allowed Callback URLs** to your application's callback URL (e.g., `http://127.0.0.1:5000/callback`).
 
 ## Usage
 
