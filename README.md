@@ -19,7 +19,7 @@ AI Note Taker is an AI-powered PDF note-taking application that allows users to 
 1. Clone the repository:
    ```bash
    git clone https://github.com/yourusername/AI-note-taker.git
-   cd AI-note-taler
+   cd AI-note-taker
    ```
 
 2. Create a virtual environment:

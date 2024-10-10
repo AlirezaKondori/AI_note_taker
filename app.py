@@ -78,17 +78,23 @@ def generate_coherent_notes(text):
     for i, chunk in enumerate(chunks):
         prompt = f"Create detailed, coherent notes in markdown format based on the following content (part {i+1} of {len(chunks)}). Focus only on the information provided:\n\n{chunk}"
         
-        response = client.chat.completions.create(
-            model="mixtral-8x7b-32768",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that creates detailed, coherent notes in markdown format. You only use the information provided in the user's message and do not include any external knowledge."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            max_tokens=1000
-        )
-        all_notes.append(response.choices[0].message.content.strip())
-        
+        while True:  # Retry loop
+            try:
+                response = client.chat.completions.create(
+                    model="mixtral-8x7b-32768",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant that creates detailed, coherent notes in markdown format. You only use the information provided in the user's message and do not include any external knowledge."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    max_tokens=1000
+                )
+                all_notes.append(response.choices[0].message.content.strip())
+                break  # Exit the retry loop if successful
+            except groq.RateLimitError as e:
+                print(f"Rate limit exceeded: {e}. Waiting for 60 seconds before retrying...")
+                time.sleep(60)  # Wait before retrying
+
         # Yield progress
         progress = (i + 1) / len(chunks) * 100
         yield json.dumps({"progress": progress})
